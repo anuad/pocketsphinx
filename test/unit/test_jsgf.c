@@ -23,7 +23,7 @@ main(int argc, char *argv[])
     ps_seg_t *seg;
     ps_lattice_t *dag;
     FILE *rawfh;
-    char const *hyp, *uttid;
+    char const *hyp;
     int32 score, prob;
     clock_t c;
     int i;
@@ -47,7 +47,7 @@ main(int argc, char *argv[])
     ps_set_search(ps, "goforward.move2"); 
 
     acmod = ps->acmod;
-    fsgs = (fsg_search_t *) fsg_search_init(fsg, config, acmod, ps->dict, ps->d2p);
+    fsgs = (fsg_search_t *) fsg_search_init("fsg", fsg, config, acmod, ps->dict, ps->d2p);
 
     setbuf(stdout, NULL);
     c = clock();
@@ -59,6 +59,7 @@ main(int argc, char *argv[])
         int is_final;
 
         TEST_ASSERT(rawfh = fopen(DATADIR "/goforward.raw", "rb"));
+	acmod_start_stream(acmod);
         TEST_EQUAL(0, acmod_start_utt(acmod));
         fsg_search_start(ps_search_base(fsgs));
         is_final = FALSE;
@@ -73,8 +74,8 @@ main(int argc, char *argv[])
                 }
             }
             hyp = fsg_search_hyp(ps_search_base(fsgs), &score, &is_final);
-            printf("FSG: %s (%d) frame %d final %s\n", hyp, score, acmod->output_frame, is_final ? "FINAL" : "");
-            TEST_EQUAL (is_final, (acmod->output_frame > 86));
+            printf("FSG: %s (%d) frame %d %s\n", hyp, score, acmod->output_frame, is_final ? "FINAL" : "");
+            TEST_EQUAL (is_final, (acmod->output_frame > 135));
         }
         fsg_search_finish(ps_search_base(fsgs));
         hyp = fsg_search_hyp(ps_search_base(fsgs), &score, NULL);
@@ -114,10 +115,10 @@ main(int argc, char *argv[])
                 "-samprate", "16000", NULL));
     TEST_ASSERT(ps = ps_init(config));
     TEST_ASSERT(rawfh = fopen(DATADIR "/goforward.raw", "rb"));
-    ps_decode_raw(ps, rawfh, "goforward", -1);
-    hyp = ps_get_hyp(ps, &score, &uttid);
-    prob = ps_get_prob(ps, &uttid);
-    printf("%s: %s (%d, %d)\n", uttid, hyp, score, prob);
+    ps_decode_raw(ps, rawfh, -1);
+    hyp = ps_get_hyp(ps, &score);
+    prob = ps_get_prob(ps);
+    printf("%s (%d, %d)\n", hyp, score, prob);
     TEST_EQUAL(0, strcmp("go forward ten meters", hyp));
     ps_free(ps);
     fclose(rawfh);
@@ -133,10 +134,10 @@ main(int argc, char *argv[])
                 "-samprate", "16000", NULL));
     TEST_ASSERT(ps = ps_init(config));
     TEST_ASSERT(rawfh = fopen(DATADIR "/goforward.raw", "rb"));
-    ps_decode_raw(ps, rawfh, "goforward", -1);
-    hyp = ps_get_hyp(ps, &score, &uttid);
-    prob = ps_get_prob(ps, &uttid);
-    printf("%s: %s (%d, %d)\n", uttid, hyp, score, prob);
+    ps_decode_raw(ps, rawfh, -1);
+    hyp = ps_get_hyp(ps, &score);
+    prob = ps_get_prob(ps);
+    printf("%s (%d, %d)\n", hyp, score, prob);
     TEST_EQUAL(0, strcmp("go forward ten meters", hyp));
     ps_free(ps);
     cmd_ln_free_r(config);

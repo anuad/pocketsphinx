@@ -34,7 +34,8 @@
 
 
 import sys, os
-from pocketsphinx import *
+from pocketsphinx.pocketsphinx import *
+from sphinxbase.sphinxbase import *
 
 
 modeldir = "../../../model"
@@ -45,11 +46,11 @@ config = Decoder.default_config()
 config.set_string('-hmm', os.path.join(modeldir, 'en-us/en-us'))
 config.set_string('-dict', os.path.join(modeldir, 'en-us/cmudict-en-us.dict'))
 config.set_string('-keyphrase', 'forward')
-config.set_float('-kws_threshold', 1e-20)
+config.set_float('-kws_threshold', 1e+20)
 
 
 # Open file to read the data
-stream = open(os.path.join(datadir, "goforward.raw"))
+stream = open(os.path.join(datadir, "goforward.raw"), "rb")
 
 # Alternatively you can read from microphone
 # import pyaudio
@@ -60,13 +61,15 @@ stream = open(os.path.join(datadir, "goforward.raw"))
 
 # Process audio chunk by chunk. On keyword detected perform action and restart search
 decoder = Decoder(config)
-decoder.start_utt('spotting')
+decoder.start_utt()
 while True:
     buf = stream.read(1024)
-    if not buf:
-	break
-    decoder.process_raw(buf, False, False)
+    if buf:
+         decoder.process_raw(buf, False, False)
+    else:
+         break
     if decoder.hyp() != None and decoder.hyp().hypstr == 'forward':
-    	print "Detected keyword, restarting search"
-	decoder.end_utt()
-	decoder.start_utt('spotting')
+        print ([(seg.word, seg.prob, seg.start_frame, seg.end_frame) for seg in decoder.seg()])
+        print ("Detected keyword, restarting search")
+        decoder.end_utt()
+        decoder.start_utt()

@@ -336,6 +336,22 @@ dict_init(cmd_ln_t *config, bin_mdef_t * mdef)
         E_INFO("%d words read\n", d->n_word);
     }
 
+    if (dict_wordid(d, S3_START_WORD) != BAD_S3WID) {
+	E_ERROR("Remove sentence start word '<s>' from the dictionary\n");
+	dict_free(d);
+	return NULL;
+    }
+    if (dict_wordid(d, S3_FINISH_WORD) != BAD_S3WID) {
+	E_ERROR("Remove sentence start word '</s>' from the dictionary\n");
+	dict_free(d);
+	return NULL;
+    }
+    if (dict_wordid(d, S3_SILENCE_WORD) != BAD_S3WID) {
+	E_ERROR("Remove silence word '<sil>' from the dictionary\n");
+	dict_free(d);
+	return NULL;
+    }
+
     /* Now the filler dictionary file, if it exists */
     d->filler_start = d->n_word;
     if (fillerfile) {

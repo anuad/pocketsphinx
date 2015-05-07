@@ -127,7 +127,6 @@ kws_search_seg_iter(ps_search_t * search, int32 * out_score)
 }
 
 static ps_searchfuncs_t kws_funcs = {
-    /* name: */ "kws",
     /* start: */ kws_search_start,
     /* step: */ kws_search_step,
     /* finish: */ kws_search_finish,
@@ -265,7 +264,6 @@ kws_search_trans(kws_search_t * kwss)
     hmm_t *pl_best_hmm = NULL;
     int32 best_out_score = WORST_SCORE;
     int i, keyword_iter;
-    uint8 to_clear;
 
     /* select best hmm in phone-loop to be a predecessor */
     for (i = 0; i < kwss->n_pl; i++)
@@ -279,7 +277,6 @@ kws_search_trans(kws_search_t * kwss)
         return;
 
     /* Check whether keyword wasn't spotted yet */
-    to_clear = FALSE;
     for (keyword_iter = 0; keyword_iter < kwss->n_keyphrases; keyword_iter++) {
         kws_keyword_t *keyword;
         hmm_t *last_hmm;
@@ -292,25 +289,14 @@ kws_search_trans(kws_search_t * kwss)
             if (hmm_out_score(last_hmm) - hmm_out_score(pl_best_hmm) 
                 >= keyword->threshold) {
 
-                int32 prob = hmm_out_score(last_hmm) - hmm_out_score(pl_best_hmm) - 
-                             keyword->threshold;
+                int32 prob = hmm_out_score(last_hmm) - hmm_out_score(pl_best_hmm);
                 kws_detections_add(kwss->detections, keyword->word, 
                                   hmm_out_history(last_hmm), 
                                   kwss->frame, prob, 
                                   hmm_out_score(last_hmm));
-                to_clear = TRUE;
             } /* keyword is spotted */
         } /* last hmm of keyword is active */
     } /* keywords loop */
-
-    if (to_clear) {
-        for (keyword_iter = 0; keyword_iter < kwss->n_keyphrases; keyword_iter++) {
-            kws_keyword_t* keyword = &kwss->keyphrases[keyword_iter];
-            for (i = 0; i < keyword->n_hmms; i++) {
-                hmm_clear(kws_nth_hmm(keyword, i));
-            }
-        }
-    } /* clear all keywords because something was spotted */
 
     /* Make transition for all phone loop hmms */
     for (i = 0; i < kwss->n_pl; i++) {
@@ -351,6 +337,7 @@ kws_search_read_list(kws_search_t *kwss, const char* keyfile)
 {
     FILE *list_file;
     lineiter_t *li;
+    char *line;
     int i;
     
     if ((list_file = fopen(keyfile, "r")) == NULL) {
@@ -358,35 +345,32 @@ kws_search_read_list(kws_search_t *kwss, const char* keyfile)
         return -1;
     }
 
-    /* count keyphrases amount */
+    /* count keyphrases */
     kwss->n_keyphrases = 0;
     for (li = lineiter_start(list_file); li; li = lineiter_next(li))
         if (li->len > 0)
             kwss->n_keyphrases++;
+
     kwss->keyphrases = (kws_keyword_t *)ckd_calloc(kwss->n_keyphrases, sizeof(*kwss->keyphrases));
     fseek(list_file, 0L, SEEK_SET);
 
     /* read keyphrases */
     for (li = lineiter_start(list_file), i=0; li; li = lineiter_next(li), i++) {
-        size_t last_ptr = li->len - 1;
+        size_t begin, end;
         kwss->keyphrases[i].threshold = kwss->def_threshold;
-        while (li->buf[last_ptr] == '\n')
-            last_ptr--;
-        if (li->buf[last_ptr] == '/') {
-            size_t digit_len, start;
-            char digit[16];
-            
-            start = last_ptr - 1;
-            while (li->buf[start] != '/' && start > 0)
-                start--;
-            digit_len = last_ptr - start;
-            memcpy(digit, &li->buf[start+1], digit_len);
-            kwss->keyphrases[i].threshold =  (int32) logmath_log(kwss->base.acmod->lmath, atof_c(digit)) 
-                                              >> SENSCR_SHIFT;
-            li->buf[start-1] = '\0';
+        line = string_trim(li->buf, STRING_BOTH);
+        end = strlen(line) - 1;
+        begin = end - 1;
+
+        if (line[end] == '/') {
+            while (line[begin] != '/' && begin > 0)
+                begin--;
+            line[end] = 0;
+	    line[begin] = 0;
+    	    kwss->keyphrases[i].threshold = (int32) logmath_log(kwss->base.acmod->lmath, atof_c(line + begin + 1)) 
+                                          >> SENSCR_SHIFT;
         }
-        li->buf[last_ptr + 1] = '\0';
-        kwss->keyphrases[i].word = ckd_salloc(li->buf);
+        kwss->keyphrases[i].word = ckd_salloc(line);
     }
 
     fclose(list_file);
@@ -394,13 +378,14 @@ kws_search_read_list(kws_search_t *kwss, const char* keyfile)
 }
 
 ps_search_t *
-kws_search_init(const char *keyphrase,
+kws_search_init(const char *name,
+		const char *keyphrase,
                 const char *keyfile,
                 cmd_ln_t * config,
                 acmod_t * acmod, dict_t * dict, dict2pid_t * d2p)
 {
     kws_search_t *kwss = (kws_search_t *) ckd_calloc(1, sizeof(*kwss));
-    ps_search_init(ps_search_base(kwss), &kws_funcs, config, acmod, dict,
+    ps_search_init(ps_search_base(kwss), &kws_funcs, PS_SEARCH_TYPE_KWS, name, config, acmod, dict,
                    d2p);
 
     kwss->detections = (kws_detections_t *)ckd_calloc(1, sizeof(*kwss->detections));
@@ -415,14 +400,17 @@ kws_search_init(const char *keyphrase,
                             cmd_ln_float32_r(config,
                                              "-kws_plp")) >> SENSCR_SHIFT;
 
+
     kwss->def_threshold =
         (int32) logmath_log(acmod->lmath,
                             cmd_ln_float64_r(config,
                                              "-kws_threshold")) >>
         SENSCR_SHIFT;
 
-    E_INFO("KWS(beam: %d, plp: %d, default threshold %d)\n",
-           kwss->beam, kwss->plp, kwss->def_threshold);
+    kwss->delay = (int32) cmd_ln_int32_r(config, "-kws_delay");
+
+    E_INFO("KWS(beam: %d, plp: %d, default threshold %d, delay %d)\n",
+           kwss->beam, kwss->plp, kwss->def_threshold, kwss->delay);
 
     if (keyfile) {
 	if (kws_search_read_list(kwss, keyfile) < 0) {
@@ -461,7 +449,7 @@ kws_search_free(ps_search_t * search)
     kws_search_t *kwss;
 
     kwss = (kws_search_t *) search;
-    ps_search_deinit(search);
+    ps_search_base_free(search);
     hmm_context_free(kwss->hmmctx);
     kws_detections_reset(kwss->detections);
     ckd_free(kwss->pl_hmms);
@@ -639,7 +627,7 @@ kws_search_hyp(ps_search_t * search, int32 * out_score,
 
     if (search->hyp_str)
         ckd_free(search->hyp_str);
-    kws_detections_hyp_str(kwss->detections, &search->hyp_str);
+    kws_detections_hyp_str(kwss->detections, &search->hyp_str, kwss->frame, kwss->delay);
     
     return search->hyp_str;
 }

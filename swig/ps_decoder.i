@@ -44,14 +44,16 @@
      * int ps_process_cep
      */
 
-    Decoder() {
+    Decoder(int *errcode) {
         Decoder *d = ps_init(cmd_ln_init(NULL, ps_args(), FALSE, NULL));
+        *errcode = d ? 0 : -1;
         return d;
     }
 
-    Decoder(Config *config) {
-        Decoder *decoder = ps_init(config);
-        return decoder;
+    Decoder(Config *config, int *errcode) {
+        Decoder *d = ps_init(config);
+        *errcode = d ? 0 : -1;
+        return d;
     }
 
     ~Decoder() {
@@ -103,12 +105,8 @@
         *errcode = ps_start_stream($self);
     }
 
-    void start_utt(char const *uttid, int *errcode) {
-        *errcode = ps_start_utt($self, uttid);
-    }
-
-    char const *get_uttid() {
-        return ps_get_uttid($self);
+    void start_utt(int *errcode) {
+        *errcode = ps_start_utt($self);
     }
 
     void end_utt(int *errcode) {
@@ -116,40 +114,29 @@
     }
 
 #ifdef SWIGPYTHON
+    %include <pybuffer.i>
+    %pybuffer_binary(const char* SDATA, size_t NSAMP);
     int
-    process_raw(const void *SDATA, size_t NSAMP, bool no_search, bool full_utt,
+    process_raw(const char* SDATA, size_t NSAMP, bool no_search, bool full_utt,
                 int *errcode) {
         NSAMP /= sizeof(int16);
-        return *errcode = ps_process_raw($self, SDATA, NSAMP, no_search, full_utt);
+        return *errcode = ps_process_raw($self, (int16 *)SDATA, NSAMP, no_search, full_utt);
     }
 #else
-    int
+    int     
     process_raw(const int16 *SDATA, size_t NSAMP, bool no_search, bool full_utt,
                 int *errcode) {
         return *errcode = ps_process_raw($self, SDATA, NSAMP, no_search, full_utt);
     }
 #endif
 
-    int decode_raw(FILE *fin, int *errcode) {
-        *errcode = ps_decode_raw($self, fin, 0, -1);
-        return *errcode;
-    }
-
-
+#ifdef SWIGJAVA
+    // Not sure how to properly return binary buffer in python yet (python3 is also an issue)
     void
     set_rawdata_size(size_t size) {
 	ps_set_rawdata_size($self, size);
     }
 
-#ifdef SWIGPYTHON
-    %cstring_output_allocate_size(char **RAWDATA, size_t *RAWDATA_SIZE, );
-    void get_rawdata(char **RAWDATA, size_t *RAWDATA_SIZE) {
-	int32 size;
-	ps_get_rawdata($self, (int16**)RAWDATA, &size);
-	if (RAWDATA_SIZE)
-	    *RAWDATA_SIZE = size * sizeof(int16);
-    }
-#else
     int16 *get_rawdata(int32 *RAWDATA_SIZE) {
 	int16 *result;
 	ps_get_rawdata($self, &result, RAWDATA_SIZE);
@@ -159,10 +146,12 @@
 
     %newobject hyp;
     Hypothesis * hyp() {
-        char const *hyp, *uttid;
-        int32 best_score;
-        hyp = ps_get_hyp($self, &best_score, &uttid);
-        return hyp ? new_Hypothesis(hyp, uttid, best_score) : NULL;
+        char const *hyp;
+        int32 best_score, prob;
+        hyp = ps_get_hyp($self, &best_score);
+        if (hyp)
+            prob = ps_get_prob($self);
+        return hyp ? new_Hypothesis(hyp, best_score, prob) : NULL;
     }
 
     FrontEnd * get_fe() {
@@ -205,6 +194,7 @@
 	*errcode = ps_set_allphone_file($self, name, lmfile);
     }
 
+    %newobject get_lm;
     NGramModel * get_lm(const char *name) {
         return ngram_model_retain(ps_get_lm($self, name));
     }
@@ -217,6 +207,7 @@
         *errcode = ps_set_lm_file($self, name, path);
     }
 
+    %newobject get_logmath;
     LogMath * get_logmath() {
         return logmath_retain(ps_get_logmath($self));
     }

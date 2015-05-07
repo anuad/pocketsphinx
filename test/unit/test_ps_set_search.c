@@ -18,7 +18,7 @@ test_no_search()
 {
     cmd_ln_t *config = default_config();
     ps_decoder_t *ps = ps_init(config);
-    TEST_ASSERT(ps_start_utt(ps, NULL) < 0);
+    TEST_ASSERT(ps_start_utt(ps) < 0);
     ps_free(ps);
     cmd_ln_free_r(config);
 }
@@ -89,6 +89,11 @@ test_set_search()
                                       ps->lmath, cmd_ln_int32_r(config, "-lw"));
     TEST_ASSERT(!ps_set_fsg(ps, "goforward", fsg));
     fsg_model_free(fsg);
+    jsgf_grammar_free(jsgf);
+
+    TEST_ASSERT(!ps_set_jsgf_file(ps, "goforward_other", DATADIR "/goforward.gram"));
+    // Second time
+    TEST_ASSERT(!ps_set_jsgf_file(ps, "goforward_other", DATADIR "/goforward.gram"));
 
     ngram_model_t *lm = ngram_model_read(config, DATADIR "/tidigits/lm/tidigits.lm.dmp",
                                          NGRAM_AUTO, ps->lmath);
@@ -96,18 +101,21 @@ test_set_search()
     ngram_model_free(lm);
 
     TEST_ASSERT(!ps_set_search(ps, "tidigits"));
+
     TEST_ASSERT(!ps_set_search(ps, "goforward"));
     
     itor = ps_search_iter(ps);
+    TEST_EQUAL(0, strcmp("goforward_other", ps_search_iter_val(itor)));
+    itor = ps_search_iter_next(itor);
     TEST_EQUAL(0, strcmp("tidigits", ps_search_iter_val(itor)));
     itor = ps_search_iter_next(itor);
     TEST_EQUAL(0, strcmp("goforward", ps_search_iter_val(itor)));
     itor = ps_search_iter_next(itor);
-    TEST_EQUAL(0, strcmp("phone_loop", ps_search_iter_val(itor)));
+    TEST_EQUAL(0, strcmp("_default_pl", ps_search_iter_val(itor)));
     itor = ps_search_iter_next(itor);
     TEST_EQUAL(NULL, itor);
     
-    TEST_ASSERT(!ps_start_utt(ps, NULL));
+    TEST_ASSERT(!ps_start_utt(ps));
     TEST_ASSERT(!ps_end_utt(ps));
     ps_free(ps);
     cmd_ln_free_r(config);

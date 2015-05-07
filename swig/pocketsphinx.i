@@ -42,13 +42,9 @@ Doxygen format. As some C types and data structures cannot be directly mapped
 into Python types, some non-trivial type conversion could have place.
 Basically a type is replaced with another one that has the closest match, and
 sometimes one argument of generated function comprises several arguments of the
-original function (usually two). Apparently Doxygen comments do not mention
-this fact, so here is a list of all known conversions so far:
+original function (usually two).
 
-  FILE * -> file
-  const int16 *SDATA, size_t NSAMP -> str
-
-Also functions having error code as the return value and returning effective
+Functions having error code as the return value and returning effective
 value in one of its arguments are transformed so that the effective value is
 returned in a regular fashion and run-time exception is being thrown in case of
 negative error code."
@@ -68,6 +64,7 @@ negative error code."
 
 #if SWIGPYTHON
 %include cstring.i
+%include pybuffer.i
 #endif
 
 %{
@@ -79,6 +76,12 @@ typedef logmath_t LogMath;
 typedef ngram_model_t NGramModel;
 typedef ngram_model_t NGramModelSet;
 %}
+
+#if SWIGPYTHON
+%begin %{
+#include <Python.h>
+%}
+#endif
 
 %begin %{
 #include <pocketsphinx.h>
@@ -99,14 +102,14 @@ typedef ps_lattice_t Lattice;
 // TODO: make private with %immutable
 typedef struct {
     char *hypstr;
-    char *uttid;
     int best_score;
+    int prob;
 } Hypothesis;
 
 typedef struct {
     char *word;
-    int32 ascr;
-    int32 lscr;
+    int32 ascore;
+    int32 lscore;
     int32 lback;
     int32 prob;
     int start_frame;
@@ -134,25 +137,20 @@ typedef struct {} SegmentList;
 #endif
 
 %extend Hypothesis {
-    Hypothesis(char const *hypstr, char const *uttid, int best_score) {
+    Hypothesis(char const *hypstr, int best_score, int prob) {
         Hypothesis *h = ckd_malloc(sizeof *h);
         if (hypstr)
             h->hypstr = ckd_salloc(hypstr);
         else
     	    h->hypstr = NULL;
-        if (uttid)
-            h->uttid = ckd_salloc(uttid);
-        else
-    	    h->uttid = NULL;
         h->best_score = best_score;
+        h->prob = prob;
         return h;  
     }
 
     ~Hypothesis() {
         if ($self->hypstr)
     	    ckd_free($self->hypstr);
-    	if ($self->uttid)
-    	    ckd_free($self->uttid);
         ckd_free($self);
     }
 }
@@ -164,7 +162,7 @@ typedef struct {} SegmentList;
 	if (!itor)
 	    return NULL;
 	seg->word = ckd_salloc(ps_seg_word(itor));
-	seg->prob = ps_seg_prob(itor, &(seg->ascr), &(seg->lscr), &(seg->lback));
+	seg->prob = ps_seg_prob(itor, &(seg->ascore), &(seg->lscore), &(seg->lback));
 	ps_seg_frames(itor, &seg->start_frame, &seg->end_frame);
 	return seg;
     }
@@ -187,7 +185,7 @@ typedef struct {} SegmentList;
         char const *hyp;
         int32 best_score;
         hyp = ps_nbest_hyp($self->nbest, &best_score);
-        return hyp ? new_Hypothesis(hyp, NULL, best_score) : NULL;
+        return hyp ? new_Hypothesis(hyp, best_score, 0) : NULL;
     }
     
     ~NBest() {
