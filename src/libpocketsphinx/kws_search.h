@@ -54,6 +54,7 @@
 typedef struct kws_seg_s {
     ps_seg_t base;       /**< Base structure. */
     gnode_t *detection;  /**< Keyword detection correspondent to segment. */
+    frame_idx_t last_frame; /**< Last frame to raise the detection */
 } kws_seg_t;
 
 typedef struct kws_keyword_s {
@@ -85,6 +86,10 @@ typedef struct kws_search_s {
 
     int32 n_pl;                   /**< Number of CI phones */
     hmm_t *pl_hmms;               /**< Phone loop hmms - hmms of CI phones */
+
+    ptmr_t perf; /**< Performance counter */
+    int32 n_tot_frame;
+
 } kws_search_t;
 
 /**
@@ -127,8 +132,8 @@ int kws_search_finish(ps_search_t * search);
 /**
  * Get hypothesis string from the KWS search.
  */
-char const *kws_search_hyp(ps_search_t * search, int32 * out_score,
-                           int32 * out_is_final);
+char const *kws_search_hyp(ps_search_t * search, int32 * out_score);
+
 /**
  * Get active keyphrases
  */

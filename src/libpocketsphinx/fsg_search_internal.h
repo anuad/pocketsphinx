@@ -100,6 +100,10 @@ typedef struct fsg_search_s {
   
     int32 n_hmm_eval;		/**< Total HMMs evaluated this utt */
     int32 n_sen_eval;		/**< Total senones evaluated this utt */
+    
+    ptmr_t perf; /**< Performance counter */
+    int32 n_tot_frame;
+        
 } fsg_search_t;
 
 /* Access macros */
@@ -144,6 +148,6 @@ int fsg_search_finish(ps_search_t *search);
 /**
  * Get hypothesis string from the FSG search.
  */
-char const *fsg_search_hyp(ps_search_t *search, int32 *out_score, int32 *out_is_final);
+char const *fsg_search_hyp(ps_search_t *search, int32 *out_score);
 
 #endif

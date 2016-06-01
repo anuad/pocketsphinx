@@ -70,7 +70,7 @@
 #define __FSG_DBG__		0
 #define __FSG_DBG_CHAN__	0
 
-static ps_seg_t *fsg_search_seg_iter(ps_search_t *search, int32 *out_score);
+static ps_seg_t *fsg_search_seg_iter(ps_search_t *search);
 static ps_lattice_t *fsg_search_lattice(ps_search_t *search);
 static int fsg_search_prob(ps_search_t *search);
 
@@ -245,7 +245,9 @@ fsg_search_init(const char *name,
     {
         ps_search_free(ps_search_base(fsgs));
         return NULL;
+    
     }
+    ptmr_init(&fsgs->perf);
         
     return ps_search_base(fsgs);
 }
@@ -254,6 +256,16 @@ void
 fsg_search_free(ps_search_t *search)
 {
     fsg_search_t *fsgs = (fsg_search_t *)search;
+
+    double n_speech = (double)fsgs->n_tot_frame
+            / cmd_ln_int32_r(ps_search_config(fsgs), "-frate");
+
+    E_INFO("TOTAL fsg %.2f CPU %.3f xRT\n",
+           fsgs->perf.t_tot_cpu,
+           fsgs->perf.t_tot_cpu / n_speech);
+    E_INFO("TOTAL fsg %.2f wall %.3f xRT\n",
+           fsgs->perf.t_tot_elapsed,
+           fsgs->perf.t_tot_elapsed / n_speech);
 
     ps_search_base_free(search);
     fsg_lextree_free(fsgs->lextree);
@@ -802,6 +814,9 @@ fsg_search_start(ps_search_t *search)
     fsgs->n_hmm_eval = 0;
     fsgs->n_sen_eval = 0;
 
+    ptmr_reset(&fsgs->perf);
+    ptmr_start(&fsgs->perf);
+
     return 0;
 }
 
@@ -814,7 +829,7 @@ fsg_search_finish(ps_search_t *search)
     fsg_search_t *fsgs = (fsg_search_t *)search;
     gnode_t *gn;
     fsg_pnode_t *pnode;
-    int32 n_hist;
+    int32 n_hist, cf;
 
     /* Deactivate all nodes in the current and next-frame active lists */
     for (gn = fsgs->pnode_active; gn; gn = gnode_next(gn)) {
@@ -834,6 +849,7 @@ fsg_search_finish(ps_search_t *search)
     fsgs->final = TRUE;
 
     n_hist = fsg_history_n_entries(fsgs->history);
+    fsgs->n_tot_frame += fsgs->frame;
     E_INFO
         ("%d frames, %d HMMs (%d/fr), %d senones (%d/fr), %d history entries (%d/fr)\n\n",
          fsgs->frame, fsgs->n_hmm_eval,
@@ -842,19 +858,30 @@ fsg_search_finish(ps_search_t *search)
          (fsgs->frame > 0) ? fsgs->n_sen_eval / fsgs->frame : 0,
          n_hist, (fsgs->frame > 0) ? n_hist / fsgs->frame : 0);
 
+    /* Print out some statistics. */
+    ptmr_stop(&fsgs->perf);
+    /* This is the number of frames processed. */
+    cf = ps_search_acmod(fsgs)->output_frame;
+    if (cf > 0) {
+        double n_speech = (double) (cf + 1)
+            / cmd_ln_int32_r(ps_search_config(fsgs), "-frate");
+        E_INFO("fsg %.2f CPU %.3f xRT\n",
+               fsgs->perf.t_cpu, fsgs->perf.t_cpu / n_speech);
+        E_INFO("fsg %.2f wall %.3f xRT\n",
+               fsgs->perf.t_elapsed, fsgs->perf.t_elapsed / n_speech);
+    }
+
+
     return 0;
 }
 
 static int
-fsg_search_find_exit(fsg_search_t *fsgs, int frame_idx, int final, int32 *out_score, int32* out_is_final)
+fsg_search_find_exit(fsg_search_t *fsgs, int frame_idx, int final, int32 *out_score)
 {
     fsg_hist_entry_t *hist_entry = NULL;
     fsg_model_t *fsg;
     int bpidx, frm, last_frm, besthist;
     int32 bestscore;
-
-    if (out_is_final)
-	*out_is_final = FALSE;
 
     if (frame_idx == -1)
         frame_idx = fsgs->frame - 1;
@@ -917,12 +944,7 @@ fsg_search_find_exit(fsg_search_t *fsgs, int frame_idx, int final, int32 *out_sc
     /* This here's the one we want. */
     if (out_score)
         *out_score = bestscore;
-    if (out_is_final) {
-	fsg_link_t *fl;
-	hist_entry = fsg_history_entry_get(fsgs->history, besthist);
-	fl = fsg_hist_entry_fsglink(hist_entry);
-	*out_is_final = (fsg_link_to_state(fl) == fsg_model_final_state(fsg));
-    }
+
     return besthist;
 }
 
@@ -948,7 +970,7 @@ fsg_search_bestpath(ps_search_t *search, int32 *out_score, int backward)
 }
 
 char const *
-fsg_search_hyp(ps_search_t *search, int32 *out_score, int32 *out_is_final)
+fsg_search_hyp(ps_search_t *search, int32 *out_score)
 {
     fsg_search_t *fsgs = (fsg_search_t *)search;
     dict_t *dict = ps_search_dict(search);
@@ -957,7 +979,7 @@ fsg_search_hyp(ps_search_t *search, int32 *out_score, int32 *out_is_final)
     int bp, bpidx;
 
     /* Get last backpointer table index. */
-    bpidx = fsg_search_find_exit(fsgs, fsgs->frame, fsgs->final, out_score, out_is_final);
+    bpidx = fsg_search_find_exit(fsgs, fsgs->frame, fsgs->final, out_score);
     /* No hypothesis (yet). */
     if (bpidx <= 0) {
         return NULL;
@@ -1086,13 +1108,14 @@ static ps_segfuncs_t fsg_segfuncs = {
 };
 
 static ps_seg_t *
-fsg_search_seg_iter(ps_search_t *search, int32 *out_score)
+fsg_search_seg_iter(ps_search_t *search)
 {
     fsg_search_t *fsgs = (fsg_search_t *)search;
     fsg_seg_t *itor;
+    int32 out_score;
     int bp, bpidx, cur;
 
-    bpidx = fsg_search_find_exit(fsgs, fsgs->frame, fsgs->final, out_score, NULL);
+    bpidx = fsg_search_find_exit(fsgs, fsgs->frame, fsgs->final, &out_score);
     /* No hypothesis (yet). */
     if (bpidx <= 0)
         return NULL;
@@ -1104,7 +1127,7 @@ fsg_search_seg_iter(ps_search_t *search, int32 *out_score)
 
         if ((dag = fsg_search_lattice(search)) == NULL)
             return NULL;
-        if ((link = fsg_search_bestpath(search, out_score, TRUE)) == NULL)
+        if ((link = fsg_search_bestpath(search, &out_score, TRUE)) == NULL)
             return NULL;
         return ps_lattice_seg_iter(dag, link, 1.0);
     }

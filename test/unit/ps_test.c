@@ -6,22 +6,6 @@
 
 #include "test_macros.h"
 
-static const mfcc_t prior[13] = {
-    FLOAT2MFCC(33.89),
-    FLOAT2MFCC(-1.13),
-    FLOAT2MFCC(0.83),
-    FLOAT2MFCC(0.49),
-    FLOAT2MFCC(-0.65),
-    FLOAT2MFCC(0.12),
-    FLOAT2MFCC(-0.03),
-    FLOAT2MFCC(0.28),
-    FLOAT2MFCC(0.41),
-    FLOAT2MFCC(0.59),
-    FLOAT2MFCC(0.11),
-    FLOAT2MFCC(-0.20),
-    FLOAT2MFCC(0.17)
-};
-
 int
 ps_decoder_test(cmd_ln_t *config, char const *sname, char const *expected)
 {
@@ -101,7 +85,7 @@ ps_decoder_test(cmd_ln_t *config, char const *sname, char const *expected)
     printf("%s: %s (%d, %d)\n", sname, hyp, score, prob);
     TEST_EQUAL(0, strcmp(hyp, expected));
     TEST_ASSERT(prob <= 0);
-    for (seg = ps_seg_iter(ps, &score); seg;
+    for (seg = ps_seg_iter(ps); seg;
          seg = ps_seg_next(seg)) {
         char const *word;
         int sf, ef;
@@ -110,9 +94,8 @@ ps_decoder_test(cmd_ln_t *config, char const *sname, char const *expected)
         word = ps_seg_word(seg);
         ps_seg_frames(seg, &sf, &ef);
         post = ps_seg_prob(seg, &ascr, &lscr, &lback);
-        printf("%s (%d:%d) P(w|o) = %f ascr = %d lscr = %d lback = %d\n", word, sf, ef,
-               logmath_exp(ps_get_logmath(ps), post), ascr, lscr, lback);
-        TEST_ASSERT(post <= 2); // Due to numerical errors with float it sometimes could go out of 0
+        printf("%s (%d:%d) P(w|o) = %f ascr = %d lscr = %d lback = %d post=%d\n", word, sf, ef,
+               logmath_exp(ps_get_logmath(ps), post), ascr, lscr, lback, post);
     }
 
     ps_get_utt_time(ps, &n_speech, &n_cpu, &n_wall);

@@ -56,13 +56,13 @@ main(int argc, char *argv[])
 			}
 		}
 		fsg_search_finish(ps_search_base(fsgs));
-		hyp = fsg_search_hyp(ps_search_base(fsgs), &score, NULL);
+		hyp = fsg_search_hyp(ps_search_base(fsgs), &score);
 		printf("FSG: %s (%d)\n", hyp, score);
 
 		TEST_ASSERT(acmod_end_utt(acmod) >= 0);
 		fclose(rawfh);
 	}
-	for (seg = ps_seg_iter(ps, &score); seg;
+	for (seg = ps_seg_iter(ps); seg;
 	     seg = ps_seg_next(seg)) {
 		char const *word;
 		int sf, ef;

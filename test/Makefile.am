@@ -25,6 +25,7 @@ EXTRA_DIST = \
 	data/goforward.fsg \
 	data/goforward.gram \
 	data/goforward.raw \
+	data/goforward.mfc \
 	data/mllr_matrices \
 	data/numbers.raw \
 	data/something.raw \
@@ -72,10 +73,10 @@ EXTRA_DIST = \
 	data/tidigits/hmm/mdef \
 	data/tidigits/hmm/means \
 	data/tidigits/lm/tidigits.dic \
-	data/tidigits/lm/tidigits.lm.dmp \
+	data/tidigits/lm/tidigits.lm.bin \
 	data/tidigits/lm/tidigits.fsg \
 	data/turtle.dic \
-	data/turtle.lm.dmp \
+	data/turtle.lm.bin \
 	data/unreachable.lat \
 	data/wsj/440c0201.mfc \
 	data/wsj/441c0201.mfc \

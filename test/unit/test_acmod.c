@@ -7,20 +7,20 @@
 #include "acmod.h"
 #include "test_macros.h"
 
-static const mfcc_t prior[13] = {
-    FLOAT2MFCC(37.03),
-    FLOAT2MFCC(-1.01),
-    FLOAT2MFCC(0.53),
-    FLOAT2MFCC(0.49),
-    FLOAT2MFCC(-0.60),
-    FLOAT2MFCC(0.14),
-    FLOAT2MFCC(-0.05),
-    FLOAT2MFCC(0.25),
-    FLOAT2MFCC(0.37),
-    FLOAT2MFCC(0.58),
-    FLOAT2MFCC(0.13),
-    FLOAT2MFCC(-0.16),
-    FLOAT2MFCC(0.17)
+static const mfcc_t cmninit[13] = {
+	FLOAT2MFCC(41.00),
+	FLOAT2MFCC(-5.29),
+	FLOAT2MFCC(-0.12),
+	FLOAT2MFCC(5.09),
+	FLOAT2MFCC(2.48),
+	FLOAT2MFCC(-4.07),
+	FLOAT2MFCC(-1.37),
+	FLOAT2MFCC(-1.78),
+	FLOAT2MFCC(-5.08),
+	FLOAT2MFCC(-2.05),
+	FLOAT2MFCC(-6.45),
+	FLOAT2MFCC(-1.42),
+	FLOAT2MFCC(1.17)
 };
 
 int
@@ -40,14 +40,8 @@ main(int argc, char *argv[])
 
     lmath = logmath_init(1.0001, 0, 0);
     config = cmd_ln_init(NULL, ps_args(), TRUE,
-                 "-featparams", MODELDIR "/en-us/en-us/feat.params",
-                 "-mdef", MODELDIR "/en-us/en-us/mdef",
-                 "-mean", MODELDIR "/en-us/en-us/means",
-                 "-var", MODELDIR "/en-us/en-us/variances",
-                 "-tmat", MODELDIR "/en-us/en-us/transition_matrices",
-                 "-sendump", MODELDIR "/en-us/en-us/sendump",
                  "-compallsen", "true",
-                 "-cmn", "prior",
+                 "-cmn", "live",
                  "-tmatfloor", "0.0001",
                  "-mixwfloor", "0.001",
                  "-varfloor", "0.0001",
@@ -57,8 +51,19 @@ main(int argc, char *argv[])
                  "-input_endian", "little",
                  "-samprate", "16000", NULL);
     TEST_ASSERT(config);
+    cmd_ln_parse_file_r(config, ps_args(), MODELDIR "/en-us/en-us/feat.params", FALSE);
+
+    cmd_ln_set_str_extra_r(config, "_mdef", MODELDIR "/en-us/en-us/mdef");
+    cmd_ln_set_str_extra_r(config, "_mean", MODELDIR "/en-us/en-us/means");
+    cmd_ln_set_str_extra_r(config, "_var", MODELDIR "/en-us/en-us/variances");
+    cmd_ln_set_str_extra_r(config, "_tmat", MODELDIR "/en-us/en-us/transition_matrices");
+    cmd_ln_set_str_extra_r(config, "_sendump", MODELDIR "/en-us/en-us/sendump");
+    cmd_ln_set_str_extra_r(config, "_mixw", NULL);
+    cmd_ln_set_str_extra_r(config, "_lda", NULL);
+    cmd_ln_set_str_extra_r(config, "_senmgau", NULL);	
+
     TEST_ASSERT(acmod = acmod_init(config, lmath, NULL, NULL));
-    cmn_prior_set(acmod->fcb->cmn_struct, prior);
+    cmn_live_set(acmod->fcb->cmn_struct, cmninit);
 
     nsamps = 2048;
     frame_counter = 0;
@@ -107,7 +112,7 @@ main(int argc, char *argv[])
 
     /* Now try to process the whole thing at once. */
     E_INFO("Whole utterance:\n");
-    cmn_prior_set(acmod->fcb->cmn_struct, prior);
+    cmn_live_set(acmod->fcb->cmn_struct, cmninit);
     nsamps = ftell(rawfh) / sizeof(*buf);
     clearerr(rawfh);
     fseek(rawfh, 0, SEEK_SET);
@@ -147,7 +152,7 @@ main(int argc, char *argv[])
     fe_end_utt(acmod->fe, cepbuf[frame_counter-1], &nfr);
 
     E_INFO("Incremental(MFCC):\n");
-    cmn_prior_set(acmod->fcb->cmn_struct, prior);
+    cmn_live_set(acmod->fcb->cmn_struct, cmninit);
     TEST_EQUAL(0, acmod_start_utt(acmod));
     cptr = cepbuf;
     nfr = frame_counter;
@@ -198,7 +203,7 @@ main(int argc, char *argv[])
     fe_end_utt(acmod->fe, cepbuf[frame_counter-1], &nfr);
 
     E_INFO("Whole utterance (MFCC):\n");
-    cmn_prior_set(acmod->fcb->cmn_struct, prior);
+    cmn_live_set(acmod->fcb->cmn_struct, cmninit);
     TEST_EQUAL(0, acmod_start_utt(acmod));
     cptr = cepbuf;
     nfr = frame_counter;

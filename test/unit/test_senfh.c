@@ -18,7 +18,7 @@ main(int argc, char *argv[])
     TEST_ASSERT(config =
             cmd_ln_init(NULL, ps_args(), TRUE,
                 "-hmm", MODELDIR "/en-us/en-us",
-                "-lm", MODELDIR "/en-us/en-us.lm.dmp",
+                "-lm", MODELDIR "/en-us/en-us.lm.bin",
                 "-dict", MODELDIR "/en-us/cmudict-en-us.dict",
                 "-fwdtree", "no",
                 "-fwdflat", "yes",
@@ -55,13 +55,13 @@ main(int argc, char *argv[])
         }
         ngram_fwdflat_finish(ngs);
         printf("%s\n",
-               ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL, NULL)));
+               ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL)));
 
         TEST_ASSERT(acmod_end_utt(acmod) >= 0);
         fclose(rawfh);
         TEST_EQUAL(0, strcmp("go forward ten meters",
                      ngram_search_bp_hyp(ngs,
-                             ngram_search_find_exit(ngs, -1, NULL, NULL))));
+                             ngram_search_find_exit(ngs, -1, NULL))));
 
         TEST_EQUAL(0, acmod_set_senfh(acmod, NULL));
         TEST_EQUAL(0, acmod_start_utt(acmod));
@@ -76,12 +76,12 @@ main(int argc, char *argv[])
         }
         ngram_fwdflat_finish(ngs);
         printf("%s\n",
-               ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL, NULL)));
+               ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL)));
 
         TEST_ASSERT(acmod_end_utt(acmod) >= 0);
         TEST_EQUAL(0, strcmp("go forward ten meters",
                      ngram_search_bp_hyp(ngs,
-                             ngram_search_find_exit(ngs, -1, NULL, NULL))));
+                             ngram_search_find_exit(ngs, -1, NULL))));
         fclose(senfh);
     }
     ps_free(ps);

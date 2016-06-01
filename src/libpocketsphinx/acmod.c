@@ -62,13 +62,6 @@
 #include "ptm_mgau.h"
 #include "ms_mgau.h"
 
-/* Feature and front-end parameters that may be in feat.params */
-static const arg_t feat_defn[] = {
-    waveform_to_cepstral_command_line_macro(),
-    cepstral_to_feature_command_line_macro(),
-    CMDLN_EMPTY_OPTION
-};
-
 #ifndef WORDS_BIGENDIAN
 #define WORDS_BIGENDIAN 1
 #endif
@@ -81,7 +74,7 @@ acmod_init_am(acmod_t *acmod)
     char const *mdeffn, *tmatfn, *mllrfn, *hmmdir;
 
     /* Read model definition. */
-    if ((mdeffn = cmd_ln_str_r(acmod->config, "-mdef")) == NULL) {
+    if ((mdeffn = cmd_ln_str_r(acmod->config, "_mdef")) == NULL) {
         if ((hmmdir = cmd_ln_str_r(acmod->config, "-hmm")) == NULL)
             E_ERROR("Acoustic model definition is not specified either "
                     "with -mdef option or with -hmm\n");
@@ -98,7 +91,7 @@ acmod_init_am(acmod_t *acmod)
     }
 
     /* Read transition matrices. */
-    if ((tmatfn = cmd_ln_str_r(acmod->config, "-tmat")) == NULL) {
+    if ((tmatfn = cmd_ln_str_r(acmod->config, "_tmat")) == NULL) {
         E_ERROR("No tmat file specified\n");
         return -1;
     }
@@ -107,14 +100,14 @@ acmod_init_am(acmod_t *acmod)
                             TRUE);
 
     /* Read the acoustic models. */
-    if ((cmd_ln_str_r(acmod->config, "-mean") == NULL)
-        || (cmd_ln_str_r(acmod->config, "-var") == NULL)
-        || (cmd_ln_str_r(acmod->config, "-tmat") == NULL)) {
+    if ((cmd_ln_str_r(acmod->config, "_mean") == NULL)
+        || (cmd_ln_str_r(acmod->config, "_var") == NULL)
+        || (cmd_ln_str_r(acmod->config, "_tmat") == NULL)) {
         E_ERROR("No mean/var/tmat files specified\n");
         return -1;
     }
 
-    if (cmd_ln_str_r(acmod->config, "-senmgau")) {
+    if (cmd_ln_str_r(acmod->config, "_senmgau")) {
         E_INFO("Using general multi-stream GMM computation\n");
         acmod->mgau = ms_mgau_init(acmod, acmod->lmath, acmod->mdef);
         if (acmod->mgau == NULL)
@@ -127,8 +120,10 @@ acmod_init_am(acmod_t *acmod)
             if ((acmod->mgau = s2_semi_mgau_init(acmod)) == NULL) {
                 E_INFO("Falling back to general multi-stream GMM computation\n");
                 acmod->mgau = ms_mgau_init(acmod, acmod->lmath, acmod->mdef);
-                if (acmod->mgau == NULL)
+                if (acmod->mgau == NULL) {
+                    E_ERROR("Failed to read acoustic model\n");
                     return -1;
+                }
             }
         }
     }
@@ -156,11 +151,11 @@ acmod_init_feat(acmod_t *acmod)
     if (acmod->fcb == NULL)
         return -1;
 
-    if (cmd_ln_str_r(acmod->config, "-lda")) {
+    if (cmd_ln_str_r(acmod->config, "_lda")) {
         E_INFO("Reading linear feature transformation from %s\n",
-               cmd_ln_str_r(acmod->config, "-lda"));
+               cmd_ln_str_r(acmod->config, "_lda"));
         if (feat_read_lda(acmod->fcb,
-                          cmd_ln_str_r(acmod->config, "-lda"),
+                          cmd_ln_str_r(acmod->config, "_lda"),
                           cmd_ln_int32_r(acmod->config, "-ldadim")) < 0)
             return -1;
     }
@@ -237,20 +232,11 @@ acmod_t *
 acmod_init(cmd_ln_t *config, logmath_t *lmath, fe_t *fe, feat_t *fcb)
 {
     acmod_t *acmod;
-    char const *featparams;
 
     acmod = ckd_calloc(1, sizeof(*acmod));
     acmod->config = cmd_ln_retain(config);
     acmod->lmath = lmath;
     acmod->state = ACMOD_IDLE;
-
-    /* Look for feat.params in acoustic model dir. */
-    if ((featparams = cmd_ln_str_r(acmod->config, "-featparams"))) {
-        if (NULL !=
-            cmd_ln_parse_file_r(acmod->config, feat_defn, featparams, FALSE))
-            E_INFO("Parsed model-specific feature parameters from %s\n",
-                    featparams);
-    }
 
     /* Initialize feature computation. */
     if (fe) {
@@ -373,7 +359,7 @@ acmod_write_senfh_header(acmod_t *acmod, FILE *logfh)
     sprintf(logbasestr, "%f", logmath_get_base(acmod->lmath));
     return bio_writehdr(logfh,
                         "version", "0.1",
-                        "mdef_file", cmd_ln_str_r(acmod->config, "-mdef"),
+                        "mdef_file", cmd_ln_str_r(acmod->config, "_mdef"),
                         "n_sen", nsenstr,
                         "logbase", logbasestr, NULL);
 }

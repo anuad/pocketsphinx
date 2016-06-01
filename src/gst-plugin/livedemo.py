@@ -3,18 +3,25 @@
 # Copyright (c) 2008 Carnegie Mellon University.
 #
 # You may modify and redistribute this file under the same terms as
-# the CMU Sphinx system.  See
-# http://cmusphinx.sourceforge.net/html/LICENSE for more information.
+# the CMU Sphinx system. See LICENSE for more information.
 
-import pygtk
-pygtk.require('2.0')
+
+from gi import pygtkcompat
+import gi
+
+gi.require_version('Gst', '1.0')
+from gi.repository import GObject, Gst
+GObject.threads_init()
+Gst.init(None)
+    
+gst = Gst
+    
+print("Using pygtkcompat and Gst from gi")
+
+pygtkcompat.enable() 
+pygtkcompat.enable_gtk(version='3.0')
+
 import gtk
-
-import gobject
-import pygst
-pygst.require('1.0')
-gobject.threads_init()
-import gst
 
 class DemoApp(object):
     """GStreamer/PocketSphinx Demo Application"""
@@ -31,7 +38,7 @@ class DemoApp(object):
         self.window.set_border_width(10)
         vbox = gtk.VBox()
         self.textbuf = gtk.TextBuffer()
-        self.text = gtk.TextView(self.textbuf)
+        self.text = gtk.TextView(buffer=self.textbuf)
         self.text.set_wrap_mode(gtk.WRAP_WORD)
         vbox.pack_start(self.text)
         self.button = gtk.ToggleButton("Speak")
@@ -42,44 +49,28 @@ class DemoApp(object):
 
     def init_gst(self):
         """Initialize the speech components"""
-        self.pipeline = gst.parse_launch('gconfaudiosrc ! audioconvert ! audioresample '
-                                         + '! pocketsphinx name=asr ! fakesink')
-        asr = self.pipeline.get_by_name('asr')
-        asr.connect('partial_result', self.asr_partial_result)
-        asr.connect('result', self.asr_result)
-        asr.set_property('configured', True)
-
+        self.pipeline = gst.parse_launch('autoaudiosrc ! audioconvert ! audioresample '
+                                         + '! pocketsphinx ! fakesink')
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()
-        bus.connect('message::application', self.application_message)
+        bus.connect('message::element', self.element_message)
 
-        self.pipeline.set_state(gst.STATE_PAUSED)
+        self.pipeline.set_state(gst.State.PAUSED)
 
-    def asr_partial_result(self, asr, text, uttid):
-        """Forward partial result signals on the bus to the main thread."""
-        struct = gst.Structure('partial_result')
-        struct.set_value('hyp', text)
-        struct.set_value('uttid', uttid)
-        asr.post_message(gst.message_new_application(asr, struct))
+    def element_message(self, bus, msg):
+        """Receive element messages from the bus."""
+        msgtype = msg.get_structure().get_name()
+        if msgtype != 'pocketsphinx':
+            return
 
-    def asr_result(self, asr, text, uttid):
-        """Forward result signals on the bus to the main thread."""
-        struct = gst.Structure('result')
-        struct.set_value('hyp', text)
-        struct.set_value('uttid', uttid)
-        asr.post_message(gst.message_new_application(asr, struct))
-
-    def application_message(self, bus, msg):
-        """Receive application messages from the bus."""
-        msgtype = msg.structure.get_name()
-        if msgtype == 'partial_result':
-            self.partial_result(msg.structure['hyp'], msg.structure['uttid'])
-        elif msgtype == 'result':
-            self.final_result(msg.structure['hyp'], msg.structure['uttid'])
-            self.pipeline.set_state(gst.STATE_PAUSED)
+        if msg.get_structure().get_value('final'):
+            self.final_result(msg.get_structure().get_value('hypothesis'), msg.get_structure().get_value('confidence'))
+            self.pipeline.set_state(gst.State.PAUSED)
             self.button.set_active(False)
+        elif msg.get_structure().get_value('hypothesis'):
+            self.partial_result(msg.get_structure().get_value('hypothesis'))
 
-    def partial_result(self, hyp, uttid):
+    def partial_result(self, hyp):
         """Delete any previous selection, insert text and select it."""
         # All this stuff appears as one single action
         self.textbuf.begin_user_action()
@@ -91,7 +82,7 @@ class DemoApp(object):
         self.textbuf.move_mark(ins, iter)
         self.textbuf.end_user_action()
 
-    def final_result(self, hyp, uttid):
+    def final_result(self, hyp, confidence):
         """Insert the final result."""
         # All this stuff appears as one single action
         self.textbuf.begin_user_action()
@@ -103,11 +94,10 @@ class DemoApp(object):
         """Handle button presses."""
         if button.get_active():
             button.set_label("Stop")
-            self.pipeline.set_state(gst.STATE_PLAYING)
+            self.pipeline.set_state(gst.State.PLAYING)
         else:
             button.set_label("Speak")
-            vader = self.pipeline.get_by_name('vad')
-            vader.set_property('silent', True)
+            self.pipeline.set_state(gst.State.PAUSED)
 
 app = DemoApp()
 gtk.main()

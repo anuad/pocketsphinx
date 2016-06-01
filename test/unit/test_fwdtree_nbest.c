@@ -22,12 +22,11 @@ main(int argc, char *argv[])
     TEST_ASSERT(config =
             cmd_ln_init(NULL, ps_args(), TRUE,
                 "-hmm", MODELDIR "/en-us/en-us",
-                "-lm", MODELDIR "/en-us/en-us.lm.dmp",
+                "-lm", MODELDIR "/en-us/en-us.lm.bin",
                 "-dict", MODELDIR "/en-us/cmudict-en-us.dict",
                 "-fwdtree", "yes",
                 "-fwdflat", "no",
                 "-bestpath", "yes",
-                "-input_endian", "little",
                 "-samprate", "16000", NULL));
     TEST_ASSERT(ps = ps_init(config));
 
@@ -69,7 +68,7 @@ main(int argc, char *argv[])
         }
         ngram_fwdtree_finish(ngs);
         printf("FWDTREE: %s\n",
-               ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL, NULL)));
+               ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL)));
 
         TEST_ASSERT(acmod_end_utt(acmod) >= 0);
         fclose(rawfh);
@@ -81,15 +80,15 @@ main(int argc, char *argv[])
         }
         besthyp = ckd_salloc
             (ps_lattice_hyp(dag, ps_lattice_bestpath
-                    (dag, ngs->lmset, 6.5, 1.0)));
+                    (dag, ngs->lmset, 9.5/6.5, 1.0)));
         printf("BESTPATH: %s\n", besthyp);
 
-        TEST_ASSERT(nbest = ps_astar_start(dag, ngs->lmset, 6.5, 0, -1, -1, -1));
+        TEST_ASSERT(nbest = ps_astar_start(dag, ngs->lmset, 9.5/6.5, 0, -1, -1, -1));
         i = 0;
         astar_hyp_score = WORST_SCORE;
         while ((path = ps_astar_next(nbest))) {
             if (i < 10)
-                printf("NBEST %d: %s\n", i, ps_astar_hyp(nbest, path));
+                printf("NBEST %d: %s (%d)\n", i, ps_astar_hyp(nbest, path), path->score);
             if (path->score > astar_hyp_score) {
                 astar_hyp_score = path->score;
                 astar_besthyp = ps_astar_hyp(nbest, path);
@@ -100,9 +99,9 @@ main(int argc, char *argv[])
         ps_astar_finish(nbest);
         ckd_free(besthyp);
     }
-    printf("%s\n", ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL, NULL)));
+    printf("%s\n", ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL)));
     TEST_EQUAL(0, strcmp("go forward ten meters",
-                 ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL, NULL))));
+                 ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL))));
     c = clock() - c;
     printf("5 * fwdtree + bestpath + N-best search in %.2f sec\n",
            (double)c / CLOCKS_PER_SEC);

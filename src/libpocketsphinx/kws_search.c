@@ -89,7 +89,12 @@ static ps_seg_t *
 kws_seg_next(ps_seg_t *seg)
 {
     kws_seg_t *itor = (kws_seg_t *)seg;
-    itor->detection = gnode_next(itor->detection);
+
+    gnode_t *detect_head = gnode_next(itor->detection);
+    while (detect_head != NULL && ((kws_detection_t*)gnode_ptr(detect_head))->ef > itor->last_frame)
+	detect_head = gnode_next(detect_head);
+    itor->detection = detect_head;
+
     if (!itor->detection) {
         kws_seg_free(seg);
         return NULL;
@@ -106,22 +111,24 @@ static ps_segfuncs_t kws_segfuncs = {
 };
 
 static ps_seg_t *
-kws_search_seg_iter(ps_search_t * search, int32 * out_score)
+kws_search_seg_iter(ps_search_t * search)
 {
     kws_search_t *kwss = (kws_search_t *)search;
     kws_seg_t *itor;
+    gnode_t *detect_head = kwss->detections->detect_list;
     
-    if (!kwss->detections->detect_list)
+    while (detect_head != NULL && ((kws_detection_t*)gnode_ptr(detect_head))->ef > kwss->frame - kwss->delay)
+	detect_head = gnode_next(detect_head);
+    
+    if (!detect_head)
         return NULL;
 
-    if (out_score)
-        *out_score = 0;
-    
     itor = (kws_seg_t *)ckd_calloc(1, sizeof(*itor));
     itor->base.vt = &kws_segfuncs;
     itor->base.search = search;
     itor->base.lwf = 1.0;
-    itor->detection = kwss->detections->detect_list;
+    itor->detection = detect_head;
+    itor->last_frame = kwss->frame - kwss->delay;
     kws_seg_fill(itor);
     return (ps_seg_t *)itor;
 }
@@ -355,10 +362,10 @@ kws_search_read_list(kws_search_t *kwss, const char* keyfile)
     fseek(list_file, 0L, SEEK_SET);
 
     /* read keyphrases */
-    for (li = lineiter_start(list_file), i=0; li; li = lineiter_next(li), i++) {
+    for (li = lineiter_start_clean(list_file), i=0; li; li = lineiter_next(li), i++) {
         size_t begin, end;
         kwss->keyphrases[i].threshold = kwss->def_threshold;
-        line = string_trim(li->buf, STRING_BOTH);
+        line = li->buf;
         end = strlen(line) - 1;
         begin = end - 1;
 
@@ -438,6 +445,8 @@ kws_search_init(const char *name,
         ps_search_free(ps_search_base(kwss));
         return NULL;
     }
+    
+    ptmr_init(&kwss->perf);
 
     return ps_search_base(kwss);
 }
@@ -449,9 +458,23 @@ kws_search_free(ps_search_t * search)
     kws_search_t *kwss;
 
     kwss = (kws_search_t *) search;
+
+    double n_speech = (double)kwss->n_tot_frame
+            / cmd_ln_int32_r(ps_search_config(kwss), "-frate");
+
+    E_INFO("TOTAL kws %.2f CPU %.3f xRT\n",
+           kwss->perf.t_tot_cpu,
+           kwss->perf.t_tot_cpu / n_speech);
+    E_INFO("TOTAL kws %.2f wall %.3f xRT\n",
+           kwss->perf.t_tot_elapsed,
+           kwss->perf.t_tot_elapsed / n_speech);
+
+
     ps_search_base_free(search);
     hmm_context_free(kwss->hmmctx);
     kws_detections_reset(kwss->detections);
+    ckd_free(kwss->detections);
+
     ckd_free(kwss->pl_hmms);
     for (i = 0; i < kwss->n_keyphrases; i++) {
         ckd_free(kwss->keyphrases[i].hmms);
@@ -580,6 +603,10 @@ kws_search_start(ps_search_t * search)
         hmm_clear(hmm);
         hmm_enter(hmm, 0, -1, 0);
     }
+
+    ptmr_reset(&kwss->perf);
+    ptmr_start(&kwss->perf);
+
     return 0;
 }
 
@@ -613,13 +640,31 @@ kws_search_step(ps_search_t * search, int frame_idx)
 int
 kws_search_finish(ps_search_t * search)
 {
-    /* Nothing here */
+    kws_search_t *kwss;
+    int32 cf;
+
+    kwss = (kws_search_t *) search;
+
+    kwss->n_tot_frame += kwss->frame;
+
+    /* Print out some statistics. */
+    ptmr_stop(&kwss->perf);
+    /* This is the number of frames processed. */
+    cf = ps_search_acmod(kwss)->output_frame;
+    if (cf > 0) {
+        double n_speech = (double) (cf + 1)
+            / cmd_ln_int32_r(ps_search_config(kwss), "-frate");
+        E_INFO("kws %.2f CPU %.3f xRT\n",
+               kwss->perf.t_cpu, kwss->perf.t_cpu / n_speech);
+        E_INFO("kws %.2f wall %.3f xRT\n",
+               kwss->perf.t_elapsed, kwss->perf.t_elapsed / n_speech);
+    }
+
     return 0;
 }
 
 char const *
-kws_search_hyp(ps_search_t * search, int32 * out_score,
-               int32 * out_is_final)
+kws_search_hyp(ps_search_t * search, int32 * out_score)
 {
     kws_search_t *kwss = (kws_search_t *) search;
     if (out_score)
@@ -627,7 +672,7 @@ kws_search_hyp(ps_search_t * search, int32 * out_score,
 
     if (search->hyp_str)
         ckd_free(search->hyp_str);
-    kws_detections_hyp_str(kwss->detections, &search->hyp_str, kwss->frame, kwss->delay);
+    search->hyp_str = kws_detections_hyp_str(kwss->detections, kwss->frame, kwss->delay);
     
     return search->hyp_str;
 }

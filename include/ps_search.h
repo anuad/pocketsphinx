@@ -68,12 +68,15 @@
 #ifndef __PS_SEARCH_H__
 #define __PS_SEARCH_H__
 
+#include <sphinxbase/fsg_model.h>
+#include <sphinxbase/ngram_model.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <sphinxbase/fsg_model.h>
-#include <sphinxbase/ngram_model.h>
+#if 0
+}
+#endif
 
 /**
  * PocketSphinx search iterator.
@@ -87,7 +90,7 @@ typedef struct ps_search_iter_s ps_search_iter_t;
  * Activates search with the provided name. The search must be added before
  * using either ps_set_fsg(), ps_set_lm() or ps_set_kws().
  *
- * @return 0 on success, 1 on failure
+ * @return 0 on success, -1 on failure
  */
 POCKETSPHINX_EXPORT
 int ps_set_search(ps_decoder_t *ps, const char *name);

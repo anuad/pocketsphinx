@@ -790,11 +790,14 @@ ptm_mgau_init(acmod_t *acmod, bin_mdef_t *mdef)
     }
 
     /* Read means and variances. */
-    if ((s->g = gauden_init(cmd_ln_str_r(s->config, "-mean"),
-                            cmd_ln_str_r(s->config, "-var"),
+    if ((s->g = gauden_init(cmd_ln_str_r(s->config, "_mean"),
+                            cmd_ln_str_r(s->config, "_var"),
                             cmd_ln_float32_r(s->config, "-varfloor"),
-                            s->lmath)) == NULL)
+                            s->lmath)) == NULL) {
+        E_ERROR("Failed to read means and variances\n");	
         goto error_out;
+    }
+
     /* We only support 256 codebooks or less (like 640k or 2GB, this
      * should be enough for anyone) */
     if (s->g->n_mgau > 256) {
@@ -819,13 +822,13 @@ ptm_mgau_init(acmod_t *acmod, bin_mdef_t *mdef)
         }
     }
     /* Read mixture weights. */
-    if ((sendump_path = cmd_ln_str_r(s->config, "-sendump"))) {
+    if ((sendump_path = cmd_ln_str_r(s->config, "_sendump"))) {
         if (read_sendump(s, acmod->mdef, sendump_path) < 0) {
             goto error_out;
         }
     }
     else {
-        if (read_mixw(s, cmd_ln_str_r(s->config, "-mixw"),
+        if (read_mixw(s, cmd_ln_str_r(s->config, "_mixw"),
                       cmd_ln_float32_r(s->config, "-mixwfloor")) < 0) {
             goto error_out;
         }

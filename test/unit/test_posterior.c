@@ -44,7 +44,7 @@ test_decode(ps_decoder_t *ps)
 	}
 	ngram_fwdtree_finish(ngs);
 	printf("FWDTREE: %s\n",
-	       ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL, NULL)));
+	       ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL)));
 
 	TEST_ASSERT(acmod_end_utt(acmod) >= 0);
 	fclose(rawfh);
@@ -143,13 +143,12 @@ main(int argc, char *argv[])
 	TEST_ASSERT(config =
 		    cmd_ln_init(NULL, ps_args(), TRUE,
 				"-hmm", MODELDIR "/en-us/en-us",
-				"-lm", MODELDIR "/en-us/en-us.lm.dmp",
+				"-lm", MODELDIR "/en-us/en-us.lm.bin",
 				"-dict", MODELDIR "/en-us/cmudict-en-us.dict",
 				"-fwdtree", "yes",
 				"-fwdflat", "no",
 				"-bestpath", "yes",
 				"-input_endian", "little",
-				"-cmninit", "37",
 				"-samprate", "16000", NULL));
 	TEST_ASSERT(ps = ps_init(config));
 	rv = test_decode(ps);

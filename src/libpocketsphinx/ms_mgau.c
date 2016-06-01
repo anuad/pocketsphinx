@@ -96,10 +96,13 @@ ms_mgau_init(acmod_t *acmod, logmath_t *lmath, bin_mdef_t *mdef)
     msg->g = NULL;
     msg->s = NULL;
     
-    g = msg->g = gauden_init(cmd_ln_str_r(config, "-mean"),
-                             cmd_ln_str_r(config, "-var"),
+    if ((g = msg->g = gauden_init(cmd_ln_str_r(config, "_mean"),
+                             cmd_ln_str_r(config, "_var"),
                              cmd_ln_float32_r(config, "-varfloor"),
-                             lmath);
+                             lmath)) == NULL) {
+	E_ERROR("Failed to read means and variances\n");	
+	goto error_out;
+    }
 
     /* Verify n_feat and veclen, against acmod. */
     if (g->n_feat != feat_dimension1(acmod->fcb)) {
@@ -116,8 +119,8 @@ ms_mgau_init(acmod_t *acmod, logmath_t *lmath, bin_mdef_t *mdef)
     }
 
     s = msg->s = senone_init(msg->g,
-                             cmd_ln_str_r(config, "-mixw"),
-                             cmd_ln_str_r(config, "-senmgau"),
+                             cmd_ln_str_r(config, "_mixw"),
+                             cmd_ln_str_r(config, "_senmgau"),
                              cmd_ln_float32_r(config, "-mixwfloor"),
                              lmath, mdef);
 

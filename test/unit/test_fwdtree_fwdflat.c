@@ -21,7 +21,7 @@ main(int argc, char *argv[])
     TEST_ASSERT(config =
             cmd_ln_init(NULL, ps_args(), TRUE,
                 "-hmm", MODELDIR "/en-us/en-us",
-                "-lm", MODELDIR "/en-us/en-us.lm.dmp",
+                "-lm", MODELDIR "/en-us/en-us.lm.bin",
                 "-dict", MODELDIR "/en-us/cmudict-en-us.dict",
                 "-fwdtree", "yes",
                 "-fwdflat", "yes",
@@ -64,7 +64,7 @@ main(int argc, char *argv[])
         }
         ngram_fwdtree_finish(ngs);
         printf("FWDTREE: %s\n",
-               ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL, NULL)));
+               ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL)));
         fclose(rawfh);
 
         E_INFO("grow_feat %d output_frame %d n_mfc_alloc %d n_mfc_frame %d\n",
@@ -81,10 +81,10 @@ main(int argc, char *argv[])
         }
         ngram_fwdflat_finish(ngs);
         printf("FWDFLAT: %s\n",
-               ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL, NULL)));
+               ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL)));
     }
     TEST_EQUAL(0, strcmp("go forward ten meters",
-                 ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL, NULL))));
+                 ngram_search_bp_hyp(ngs, ngram_search_find_exit(ngs, -1, NULL))));
     c = clock() - c;
     printf("5 * fwdtree + fwdflat search in %.2f sec\n",
            (double)c / CLOCKS_PER_SEC);

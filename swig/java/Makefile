@@ -1,5 +1,5 @@
 CFLAGS := -g -Wall -DPIC -fPIC
-CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux `pkg-config --cflags sphinxbase pocketsphinx`
+CPPFLAGS := -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -Wno-unused-function `pkg-config --cflags sphinxbase pocketsphinx`
 
 all: libpocketsphinx_jni.so
 
@@ -23,6 +23,5 @@ clean:
 	$(RM) -r edu
 
 run:
-	javac -cp junit-4.10.jar test/*.java edu/cmu/pocketsphinx/*.java
-	java -Djava.library.path=. -cp junit-4.10.jar:. org.junit.runner.JUnitCore test.DecoderTest
-
+	javac test/*.java edu/cmu/pocketsphinx/*.java
+	java -Djava.library.path=. -cp . test.DecoderTest
